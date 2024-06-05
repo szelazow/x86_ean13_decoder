@@ -41,11 +41,9 @@ load_byte:
 check_modsize:
         inc     al
         dec     ah
-        test    ah, ah
         jz      load_byte
         shl     cl, 1
-        test    cl, 10000000b
-        jz     check_modsize
+        jns     check_modsize
         dec     al                    ;amount to be skipped - module size - 1
 
 ;       bl - skip counter
@@ -111,7 +109,6 @@ skip_middle:
 skip_middle_loop:
         call    read_bar
         dec     bl
-        test    bl, bl
         jnz     skip_middle_loop
 
 last_six:
@@ -125,22 +122,20 @@ right_number_loop:
 right_bar_loop:
         call    read_bar
         dec     bh
-        test    bh, bh
         jnz     right_bar_loop
 
 read_right:
         push    ebx
         push    edi
         xor     dl, dl
-        xor     edi, edi
+        mov     edi, 10
 
 right_read_loop:
+        dec     edi
         lea     ebx, [codes_R + edi]
         mov     bl, [ebx]
         cmp     bl, ch
-        je      right_read_finish
-        inc     edi
-        jmp     right_read_loop
+        jne     right_read_loop
 
 right_read_finish:
         mov     [esi], edi
@@ -158,19 +153,17 @@ first:
 first_bar_loop:
         call    read_bar
         dec     bh
-        test    bh, bh
         jnz     first_bar_loop
 
 bar_read:
-        xor     eax, eax
+        mov     eax, 10
 
 first_loop:
+        dec     eax
         lea     ebx, [codes_first + eax]
         mov     bl, [ebx]
         cmp     bl, dh
-        je      first_read_finish
-        inc     eax
-        jmp     first_loop
+        jne     first_loop
 
 first_read_finish:
         mov     [esi], al
@@ -219,7 +212,3 @@ epilogue:
         pop ebx
         pop ebp
         ret
-        
-;pozbyć się test
-;dec
-;skoki bezwarunkowe
