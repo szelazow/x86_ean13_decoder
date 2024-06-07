@@ -8,7 +8,7 @@ section .text
 global decode_ean13
 
 ;       ah -  current byte counter - eax is used for byte logic 
-;       al -  to be skipped per modules
+;       al -  to be skipped per iteration
 ;       ebx - 
 ;       cl -  current byte
 ;       ch - 
@@ -45,7 +45,6 @@ check_modsize:
         shl     cl, 1
         jns     check_modsize
         dec     al                    ;amount to be skipped - module size - 1
-
 ;       bl - skip counter
 skip_01:                              ;skip the second and third bars
         call    read_bar
@@ -172,22 +171,30 @@ first_read_finish:
 
 ;       ch - buffer of currently collected values
 ;       dl - module width counter
+;       cl -  current byte
 read_bar:
         mov     dl, al               ;store the amount of bits per module into a counter
+        test    ah, ah               ;check if byte was fully passed through
+        jnz     check_if_skip
 
-byte_check:                          ;load new byte if byte counter hit 0
-        test    ah, ah
-        jz      get_byte
+get_byte:
+        mov     ah, 8
+        mov     cl, BYTE[edi]   
+        inc     edi
+
+check_if_skip:
         test    dl, dl
-        jz      module_value
+        jz      get_module_value
 
 skip_loop:
+        shl     cl, 1
         dec     dl
         dec     ah
-        shl     cl, 1
-        jmp     byte_check
+        jz      get_byte
+        test    dl, dl
+        jnz     skip_loop
 
-module_value:
+get_module_value:
         dec     ah
         shl     ch, 1
         shl     cl, 1
@@ -196,14 +203,6 @@ module_value:
 
 read_finished:
         ret
-
-get_byte:
-        mov     ah, 8
-        mov     cl, BYTE[edi]   
-        inc     edi
-        jmp     byte_check
-
-
 
 epilogue:
         ; epilogue
