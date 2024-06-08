@@ -51,11 +51,12 @@ skip_01:                              ;skip the second and third bars
 ;       bl - number counter
 ;       bh - bar counter
 ;       cl - currently read
-;       ch - used in reading
+;       ch - used in reading the first number
 ;       edx - countdown from 9 to 0
 first_six:
         mov     bl, 6
         inc     esi                  ;skip first character for now
+        xor     ch, ch               ;clean out, prep for reading
         
 left_number_loop:
         xor     cl, cl
@@ -71,11 +72,9 @@ read_left:
 
 left_read_loop:
         dec     edx
-        mov     ch, [codes_L + edx]
-        cmp     ch, cl
+        cmp     [codes_L + edx], cl
         je      found_L
-        mov     ch, [codes_G + edx]
-        cmp     ch, cl
+        cmp     [codes_G + edx], cl
         jne     left_read_loop
 
 found_G:
@@ -117,8 +116,7 @@ read_right:
 
 right_read_loop:
         dec     edx
-        mov     ch, [codes_R + edx]
-        cmp     ch, cl
+        cmp     [codes_R + edx], cl
         jne     right_read_loop
 
 
@@ -127,21 +125,32 @@ right_read_finish:
         inc     esi
         dec     bl
         jnz     right_number_loop
-        jmp     epilogue
 
+first:
+        sub     esi, 13
+        mov     edx, 10
+
+first_loop:
+        dec     edx
+        cmp     [codes_first + edx], ch
+        jne     first_loop
+
+first_read_finish:
+        mov     [esi], dl
+        jmp     epilogue
 
 ;       al  - counter checking if byte was fully passed through
 ;       ah  - current byte
 ;       ebx - number counters used by reading loops
 ;       cl  -  output[read value]
-;       ch  -  mod width counter
+;       dl  -  mod width counter
 read_bar:
-        mov     ch, BYTE[ebp-4]               ;store the amount of bits per module into a counter
+        mov     dl, BYTE[ebp-4]               ;store the amount of bits per module into a counter
         test    al, al                        ;check if byte was fully passed through
         jz      get_byte
 
 skip_loop:
-        dec     ch      
+        dec     dl      
         jz      get_module_value
         shl     ah, 1
         dec     al
@@ -151,7 +160,7 @@ get_byte:
         mov     al, 8
         mov     ah, BYTE[edi]   
         inc     edi
-        test    ch, ch
+        test    dl, dl
         jnz     skip_loop               ;do not start skipping if module width is 1
 
 get_module_value:
@@ -172,34 +181,3 @@ epilogue:
         mov     esp, ebp
         pop     ebp
         ret
-
-
-
-
-
-
-
-
-first:
-        sub     esi, 13
-        xor     ch, ch
-        mov     bh, 7
-
-first_bar_loop:
-        call    read_bar
-        dec     bh
-        jnz     first_bar_loop
-
-bar_read:
-        mov     eax, 10
-
-first_loop:
-        dec     eax
-        lea     ebx, [codes_first + eax]
-        mov     bl, [ebx]
-        cmp     bl, ch
-        jne     first_loop
-
-first_read_finish:
-        mov     [esi], dh
-        jmp     epilogue
