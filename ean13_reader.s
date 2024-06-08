@@ -7,99 +7,141 @@ section .rodata
 section .text
 global decode_ean13
 
-;       ah -  current byte counter - eax is used for byte logic 
-;       al -  to be skipped per iteration
-;       ebx - 
-;       cl -  current byte
-;       ch - 
-;       dh -  used for reading the first digit
+;       al -  counter used to check how many bits are left in the currently read byte
+;       ah -  current byte
+;       bh -
+;       bl - 
+;       cl - 
+;       ch -  
+;       dh -  
 ;       dl - 
 ;       esi - output buffer
 ;       edi - image
-;       
 
 decode_ean13:
         ; prologue
         push    ebp
         mov     ebp, esp
+        sub     esp, 4
         push    ebx
         push    esi
         push    edi
-
         mov     esi, [ebp + 8]         ; out
         mov     edi, [ebp + 12]        ; img
 
-        xor     eax, eax
-        xor     ebx, ebx
-        xor     ecx, ecx
+        xor     cl, cl
 
 load_byte:
-        mov     ah, 8
-        mov     cl, BYTE[edi]
+        mov     al, 8                  ;counter checking the amount of bits left in current byte
+        mov     ah, BYTE[edi]          ;current byte
         inc     edi
 
 check_modsize:
-        inc     al
-        dec     ah
+        inc     cl                     ;used to calculate the width of 1 module
+        dec     al
         jz      load_byte
-        shl     cl, 1
+        shl     ah, 1
         jns     check_modsize
-        dec     al                    ;amount to be skipped - module size - 1
-;       bl - skip counter
+        mov     [ebp-4], cl
+
 skip_01:                              ;skip the second and third bars
         call    read_bar
-        call    read_bar
+        call    read_bar              ;every ean-13 code starts with a sequence of black - white - black: we read the first black bar to set modsize, so we'll have to skip 2 more bars.
 
 ;       bl - number counter
 ;       bh - bar counter
-;       ch - currently read
+;       cl - currently read
+;       ch - used in reading
+;       edx - countdown from 9 to 0
 first_six:
         mov     bl, 6
         inc     esi                  ;skip first character for now
         
 left_number_loop:
-        xor     ch, ch
-        dec     bl
+        xor     cl, cl
         mov     bh, 7
 
 left_bar_loop:
         call    read_bar
         dec     bh
-        test    bh, bh
         jnz     left_bar_loop
 
-;       dh - stores AB sequence, used for setting the first digit of the code
 read_left:
-        push    ebx
-        push    edi
-        mov     edi, 10
+        mov     edx, 10
 
 left_read_loop:
-        dec     edi
-        lea     ebx, [codes_L + edi]
-        mov     bl, [ebx]
-        cmp     bl, ch
+        dec     edx
+        mov     ch, [codes_L + edx]
+        cmp     ch, cl
         je      found_L
-        lea     ebx, [codes_G + edi]
-        mov     bl, [ebx]
-        cmp     bl, ch
+        mov     ch, [codes_G + edx]
+        cmp     ch, cl
         jne     left_read_loop
 
 found_G:
-        shl     dh, 1
-        inc     dh              ;if L sequence append 0, if G sequence append 1
+        shl     ch, 1
+        inc     ch              ;if L sequence append 0, if G sequence append 1
         jmp     left_read_finish
 
 found_L:
-        shl     dh, 1
+        shl     ch, 1
 
 left_read_finish:
-        mov     [esi], edi
+        mov     [esi], edx
         inc     esi
-        pop     edi
-        pop     ebx
-        test    bl, bl
+        dec     bl
         jnz     left_number_loop
+        jmp     epilogue
+
+;       al  - counter checking if byte was fully passed through
+;       ah  - current byte
+;       ebx - number counters used by reading loops
+;       cl  -  output[read value]
+;       ch  -  mod width counter
+;       edx - 
+
+read_bar:
+        mov     ch, BYTE[ebp-4]               ;store the amount of bits per module into a counter
+        test    al, al                        ;check if byte was fully passed through
+        jz      get_byte
+
+skip_loop:
+        dec     ch      
+        jz      get_module_value
+        shl     ah, 1
+        dec     al
+        jnz     skip_loop
+
+get_byte:
+        mov     al, 8
+        mov     ah, BYTE[edi]   
+        inc     edi
+        test    ch, ch
+        jnz     skip_loop               ;do not start skipping if module width is 1
+
+get_module_value:
+        dec     al
+        shl     cl, 1
+        shl     ah, 1
+        jnc     read_finished
+        inc     cl                  ;if not zero set current read to 1
+
+read_finished:
+        ret
+
+epilogue:
+        ; epilogue
+        pop     edi
+        pop     esi
+        pop     ebx
+        mov     esp, ebp
+        pop     ebp
+        ret
+
+
+
+
+
 
 
 skip_middle:
@@ -161,53 +203,9 @@ first_loop:
         dec     eax
         lea     ebx, [codes_first + eax]
         mov     bl, [ebx]
-        cmp     bl, dh
+        cmp     bl, ch
         jne     first_loop
 
 first_read_finish:
-        mov     [esi], al
+        mov     [esi], dh
         jmp     epilogue
-
-
-;       ch - buffer of currently collected values
-;       dl - module width counter
-;       cl -  current byte
-read_bar:
-        mov     dl, al               ;store the amount of bits per module into a counter
-        test    ah, ah               ;check if byte was fully passed through
-        jnz     check_if_skip
-
-get_byte:
-        mov     ah, 8
-        mov     cl, BYTE[edi]   
-        inc     edi
-
-check_if_skip:
-        test    dl, dl
-        jz      get_module_value
-
-skip_loop:
-        shl     cl, 1
-        dec     dl
-        dec     ah
-        jz      get_byte
-        test    dl, dl
-        jnz     skip_loop
-
-get_module_value:
-        dec     ah
-        shl     ch, 1
-        shl     cl, 1
-        jnc     read_finished
-        inc     ch                  ;if not zero set current read to 1
-
-read_finished:
-        ret
-
-epilogue:
-        ; epilogue
-        pop edi
-        pop esi
-        pop ebx
-        pop ebp
-        ret
