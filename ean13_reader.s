@@ -91,15 +91,50 @@ left_read_finish:
         inc     esi
         dec     bl
         jnz     left_number_loop
+
+skip_middle:
+        mov     bl, 5
+
+skip_middle_loop:
+        call    read_bar
+        dec     bl
+        jnz     skip_middle_loop
+
+last_six:
+        mov     bl, 6
+
+right_number_loop:
+        xor     cl, cl
+        mov     bh, 7
+
+right_bar_loop:
+        call    read_bar
+        dec     bh
+        jnz     right_bar_loop
+
+read_right:
+        mov     edx, 10
+
+right_read_loop:
+        dec     edx
+        mov     ch, [codes_R + edx]
+        cmp     ch, cl
+        jne     right_read_loop
+
+
+right_read_finish:
+        mov     [esi], edx
+        inc     esi
+        dec     bl
+        jnz     right_number_loop
         jmp     epilogue
+
 
 ;       al  - counter checking if byte was fully passed through
 ;       ah  - current byte
 ;       ebx - number counters used by reading loops
 ;       cl  -  output[read value]
 ;       ch  -  mod width counter
-;       edx - 
-
 read_bar:
         mov     ch, BYTE[ebp-4]               ;store the amount of bits per module into a counter
         test    al, al                        ;check if byte was fully passed through
@@ -144,47 +179,6 @@ epilogue:
 
 
 
-skip_middle:
-        mov     bl, 5
-
-skip_middle_loop:
-        call    read_bar
-        dec     bl
-        jnz     skip_middle_loop
-
-last_six:
-        mov     bl, 6
-
-right_number_loop:
-        xor     ch, ch
-        dec     bl
-        mov     bh, 7
-
-right_bar_loop:
-        call    read_bar
-        dec     bh
-        jnz     right_bar_loop
-
-read_right:
-        push    ebx
-        push    edi
-        xor     dl, dl
-        mov     edi, 10
-
-right_read_loop:
-        dec     edi
-        lea     ebx, [codes_R + edi]
-        mov     bl, [ebx]
-        cmp     bl, ch
-        jne     right_read_loop
-
-right_read_finish:
-        mov     [esi], edi
-        inc     esi
-        pop     edi
-        pop     ebx
-        test    bl, bl
-        jnz     right_number_loop
 
 first:
         sub     esi, 13
