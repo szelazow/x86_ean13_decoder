@@ -7,8 +7,8 @@ section .rodata
 section .text
 global decode_ean13
 
-;       al -  counter used to check how many bits are left in the currently read byte
-;       ah -  current byte
+;       al -  counter used to check how many bits are left in the currently read byte 
+;       ah -  current byte - EAX must be maintained to preserve byte data
 ;       bh -
 ;       bl - 
 ;       cl - 
@@ -58,7 +58,7 @@ first_six:
         inc     esi                  ;skip first character for now
         xor     ch, ch               ;clean out, prep for reading
         
-left_number_loop:
+left_number_loop:                    ;loop using for reading digits 2-7, also provides information necessary for reading the first digit
         xor     cl, cl
         mov     bh, 7
 
@@ -71,7 +71,7 @@ read_left:
         mov     edx, 10
 
 left_read_loop:
-        dec     edx
+        dec     edx              
         cmp     [codes_L + edx], cl
         je      found_L
         cmp     [codes_G + edx], cl
@@ -91,7 +91,7 @@ left_read_finish:
         dec     bl
         jnz     left_number_loop
 
-skip_middle:
+skip_middle:                                  ;used for skipping the 5 bars separating  the 7th and 8th digit
         mov     bl, 5
 
 skip_middle_loop:
@@ -143,6 +143,7 @@ first_read_finish:
 ;       ah  - current byte
 ;       ebx - number counters used by reading loops
 ;       cl  -  output[read value]
+;       ch  - must be maintained through reads - used for decoding the first digit
 ;       dl  -  mod width counter
 read_bar:
         mov     dl, BYTE[ebp-4]               ;store the amount of bits per module into a counter
@@ -174,7 +175,6 @@ read_finished:
         ret
 
 epilogue:
-        ; epilogue
         pop     edi
         pop     esi
         pop     ebx
